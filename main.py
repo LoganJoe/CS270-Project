@@ -80,10 +80,9 @@ def restore_Trump(img, R=None, K=150):
     return restored_img
 
 
-def restore_Biden(img, K=20):
+def restore_Biden(img, a=0.025, b=-0.025, T=50, K=20):
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    a = 0.025
-    MB_kernel = get_MotionBlur_kernel(img_gray.shape[0], a, -a, 50)
+    MB_kernel = get_MotionBlur_kernel(img_gray.shape[0], a, b, T)
     restored_img = Wiener_filter(img, MB_kernel, K)
     return restored_img
 
