@@ -64,7 +64,7 @@ def get_MotionBlur_kernel(size, a, b, T):
     return kernel
 
 
-def restore_Trump(img, R=None, K=150):
+def restore_Trump(img, R=None, K=50):
     """
     :param img: The image of Trump with 3 channels
     :param R: manually measured radius of the inner circle of the PSF kernel
@@ -80,7 +80,7 @@ def restore_Trump(img, R=None, K=150):
     return restored_img
 
 
-def restore_Biden(img, a=-0.0205, b=96 / 57 * 0.0205, T=500, K=200):
+def restore_Biden(img, a=-0.021, b=97 / 57 * 0.021, T=500, K=300):
     """
     :param img: image of Biden with 3 channels
     :param a: proportional to extent of motion blur in vertical direction
@@ -118,13 +118,11 @@ def Wiener_filter(img, kernel, K):
 if __name__ == "__main__":
     Biden = cv2.imread('images/man1.jpg').astype(np.float32) / 255
     Trump = cv2.imread('images/man2.jpg').astype(np.float32) / 255
-    # mask = cv2.imread('images/mask.jpg').astype(np.float32) / 255
-    mask = np.zeros_like(Biden).astype(np.uint8)
-    cv2.ellipse(mask, (265, 256), (85, 100), 0, 0, 360, (1, 1, 1), -1)
+    mask = scio.loadmat('images/mask.mat')['mask'].astype(np.uint8)
+    mask[mask != 0] = 1
+    mask = 1 - mask
     res_Trump = restore_Trump(Trump)
     res_Biden = restore_Biden(Biden)
-    # res_Biden = exposure.equalize_hist(res_Biden, channel_axis=2)
-    # res_Biden = exposure.match_histograms(res_Biden, res_Trump, channel_axis=2)
     cv2.imwrite('restored_Trump.jpg', res_Trump)
     cv2.imwrite('restored_Biden.jpg', res_Biden)
     pyramids = Pyramids()
