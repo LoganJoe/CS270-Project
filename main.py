@@ -4,7 +4,7 @@ import numpy as np
 import pyramids
 from pyramids import Pyramids
 import scipy.io as scio
-
+from skimage import exposure
 
 def DFT(img):
     return np.fft.fftshift(np.fft.fft2(img))
@@ -61,9 +61,6 @@ def get_MotionBlur_kernel(size, a, b, T):
                 kernel[u + size // 2][v + size // 2] = T * np.exp(-1.0j * param)
             else:
                 kernel[u + size // 2][v + size // 2] = T / param * np.sin(param) * np.exp(-1.0j * param)
-    img = np.abs(kernel)
-    img = (img - np.min(img)) / (np.max(img) - np.min(img))
-    cv2.imwrite("MB_kernel.jpg", img * 255)
     return kernel
 
 
@@ -83,9 +80,16 @@ def restore_Trump(img, R=None, K=150):
     return restored_img
 
 
-def restore_Biden(img, a=0.0205, b=-96 / 57 * 0.0205, T=100, K=100):
+def restore_Biden(img, a=-0.0205, b=96 / 57 * 0.0205, T=500, K=200):
+    """
+    :param img: image of Biden with 3 channels
+    :param a: proportional to extent of motion blur in vertical direction
+    :param b: proportional to extent of motion blur in horizontal direction
+    :param T: exposure time
+    :param K: inverse of SNR i.e. noise-to-signal-ratio
+    :return: restored image of Biden
+    """
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Biden_fft = visualize_DFT(img_gray, display=True)
     MB_kernel = get_MotionBlur_kernel(img_gray.shape[0], a, b, T)
     restored_img = Wiener_filter(img, MB_kernel, K)
     return restored_img
@@ -114,11 +118,15 @@ def Wiener_filter(img, kernel, K):
 if __name__ == "__main__":
     Biden = cv2.imread('images/man1.jpg').astype(np.float32) / 255
     Trump = cv2.imread('images/man2.jpg').astype(np.float32) / 255
-    mask = cv2.imread('images/mask.jpg').astype(np.float32) / 255
+    # mask = cv2.imread('images/mask.jpg').astype(np.float32) / 255
+    mask = np.zeros_like(Biden).astype(np.uint8)
+    cv2.ellipse(mask, (265, 256), (85, 100), 0, 0, 360, (1, 1, 1), -1)
     res_Trump = restore_Trump(Trump)
     res_Biden = restore_Biden(Biden)
+    # res_Biden = exposure.equalize_hist(res_Biden, channel_axis=2)
+    # res_Biden = exposure.match_histograms(res_Biden, res_Trump, channel_axis=2)
     cv2.imwrite('restored_Trump.jpg', res_Trump)
     cv2.imwrite('restored_Biden.jpg', res_Biden)
-    # pyramids = Pyramids()
-    # blend = pyramids.pyramid_blending(res_Trump, res_Biden, mask)
-    # cv2.imwrite('Biden&Trump.jpg', pyramids.reconstruct(blend))
+    pyramids = Pyramids()
+    blend = pyramids.pyramid_blending(res_Trump, res_Biden, mask)
+    cv2.imwrite('Biden&Trump.jpg', pyramids.reconstruct(blend))
