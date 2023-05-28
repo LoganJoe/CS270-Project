@@ -118,8 +118,8 @@ def Wiener_filter(img, kernel, K):
 if __name__ == "__main__":
     Biden = cv2.imread('images/man1.jpg').astype(np.float32) / 255
     Trump = cv2.imread('images/man2.jpg').astype(np.float32) / 255
-    mask = scio.loadmat('images/mask.mat')['mask'].astype(np.uint8)
-    mask[mask != 0] = 1
+    mask = scio.loadmat('images/mask.mat')['mask'].astype(np.float32)
+    mask /= 255
     mask = 1 - mask
     res_Trump = restore_Trump(Trump)
     res_Biden = restore_Biden(Biden)
