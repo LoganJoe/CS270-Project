@@ -26,15 +26,24 @@ def visualize_DFT(img, display=True):
 
 
 def get_inner_radius(img):
-    r = 79 / 2
+    img = cv2.GaussianBlur(img, (5, 5), 1)
+    edge = cv2.Canny((img*255).astype(np.uint8), 40, 89)
+    avg_r = 0
+    for x in range(edge.shape[0]):
+        for y in range(edge.shape[1]):
+            if edge[x][y] == 255:
+                if avg_r < np.sqrt((x - edge.shape[0] // 2) ** 2 + (y - edge.shape[1] // 2) ** 2):
+                    avg_r = np.sqrt((x - edge.shape[0] // 2) ** 2 + (y - edge.shape[1] // 2) ** 2)
+    r = avg_r
+    cv2.imwrite('PSF_edge.png', edge)
+    # r = 79 / 2
     return (3.83 * img.shape[0]) / (2 * np.pi * r)
 
 
 def get_motion_blur_params(img):
-    img = 1 - img
-    edge = cv2.Canny((img*255).astype(np.uint8), 53, 213)
-    cv2.imshow('edge', edge)
-    cv2.waitKey(0)
+    img = cv2.GaussianBlur(img, (5, 5), 0.5)
+    edge = cv2.Canny((img*255).astype(np.uint8), 70, 180)
+    cv2.imwrite('MB_edge.png', edge)
     a = -0.021
     b = 97 / 57 * 0.021
     T = 500
