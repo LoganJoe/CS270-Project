@@ -31,6 +31,10 @@ def get_inner_radius(img):
 
 
 def get_motion_blur_params(img):
+    img = 1 - img
+    edge = cv2.Canny((img*255).astype(np.uint8), 53, 213)
+    cv2.imshow('edge', edge)
+    cv2.waitKey(0)
     a = -0.021
     b = 97 / 57 * 0.021
     T = 500
@@ -133,6 +137,6 @@ if __name__ == "__main__":
     res_Biden = restore_Biden(Biden)
     cv2.imwrite('restored_Trump.jpg', res_Trump)
     cv2.imwrite('restored_Biden.jpg', res_Biden)
-    pyramids = Pyramids()
-    blend = pyramids.pyramid_blending(res_Trump, res_Biden, mask)
-    cv2.imwrite('Biden&Trump.jpg', pyramids.reconstruct(blend))
+    # pyramids = Pyramids()
+    # blend = pyramids.pyramid_blending(res_Trump, res_Biden, mask)
+    # cv2.imwrite('Biden&Trump.jpg', pyramids.reconstruct(blend))
