@@ -26,9 +26,15 @@ def visualize_DFT(img, display=True):
 
 
 def get_inner_radius(img):
-    # TODO: automatically get the inner radius of the PSF kernel instead of measuring it manually
-    r = 79 / 2  # 79 is a temporarily and coarsely measured value since canny edge detection seems not working well
+    r = 79 / 2
     return (3.83 * img.shape[0]) / (2 * np.pi * r)
+
+
+def get_motion_blur_params(img):
+    a = -0.021
+    b = 97 / 57 * 0.021
+    T = 500
+    return a, b, T
 
 
 def get_PSF_kernel(size, radius):
@@ -80,7 +86,7 @@ def restore_Trump(img, R=None, K=50):
     return restored_img
 
 
-def restore_Biden(img, a=-0.021, b=97 / 57 * 0.021, T=500, K=300):
+def restore_Biden(img, a=None, b=None, T=None, K=300):
     """
     :param img: image of Biden with 3 channels
     :param a: proportional to extent of motion blur in vertical direction
@@ -90,6 +96,8 @@ def restore_Biden(img, a=-0.021, b=97 / 57 * 0.021, T=500, K=300):
     :return: restored image of Biden
     """
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img_fft = visualize_DFT(img_gray, display=False)
+    a, b, T = get_motion_blur_params(img_fft) if a is None or b is None or T is None else (a, b, T)
     MB_kernel = get_MotionBlur_kernel(img_gray.shape[0], a, b, T)
     restored_img = Wiener_filter(img, MB_kernel, K)
     return restored_img
