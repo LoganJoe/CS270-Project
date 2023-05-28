@@ -4,7 +4,12 @@ import numpy as np
 import pyramids
 from pyramids import Pyramids
 import scipy.io as scio
-from skimage import exposure
+
+
+def save_image(img, name):
+    img = (img - np.min(img)) / (np.max(img) - np.min(img))
+    cv2.imwrite(name, (img * 255).astype(np.uint8))
+
 
 def DFT(img):
     return np.fft.fftshift(np.fft.fft2(img))
@@ -19,34 +24,62 @@ def visualize_DFT(img, display=True):
     img_fft = np.log(np.abs(img_fft))
     img_fft = (img_fft - np.min(img_fft)) / (np.max(img_fft) - np.min(img_fft))
     if display:
-        cv2.imshow('DFT', img_fft)
-        cv2.waitKey(0)
-        cv2.imwrite("log_dft.jpg", img_fft * 255)
+        save_image(img_fft, 'log_dft.jpg')
     return img_fft
 
 
 def get_inner_radius(img):
-    img = cv2.GaussianBlur(img, (5, 5), 1)
-    edge = cv2.Canny((img*255).astype(np.uint8), 40, 89)
+    std = 1
+    img = cv2.GaussianBlur(img, (5, 5), std)
+    edge = cv2.Canny((img * 255).astype(np.uint8), 40, 89)
     avg_r = 0
     for x in range(edge.shape[0]):
         for y in range(edge.shape[1]):
             if edge[x][y] == 255:
                 if avg_r < np.sqrt((x - edge.shape[0] // 2) ** 2 + (y - edge.shape[1] // 2) ** 2):
                     avg_r = np.sqrt((x - edge.shape[0] // 2) ** 2 + (y - edge.shape[1] // 2) ** 2)
-    r = avg_r
-    cv2.imwrite('PSF_edge.png', edge)
+    r = avg_r + std * 2
+    save_image(edge, 'PSF_edge.jpg')
     # r = 79 / 2
     return (3.83 * img.shape[0]) / (2 * np.pi * r)
 
 
+def HoughTransform(img, delta_theta=1.0, delta_rho=1.0):
+    theta = np.arange(-90, 90, delta_theta)
+    D = np.sqrt(img.shape[0] ** 2 + img.shape[1] ** 2)
+    rho = np.arange(-D, D, delta_rho)
+    cosine = np.cos(theta / 180 * np.pi)
+    sine = np.sin(theta / 180 * np.pi)
+    accumulator = np.zeros((len(rho), len(theta)))
+    for x in range(img.shape[0]):
+        for y in range(img.shape[1]):
+            if img[x][y] == 255:
+                r = x * cosine + y * sine
+                r = ((r + D) / (2 * D) * len(rho)).astype(np.int32)
+                for i in range(len(theta)):
+                    accumulator[r[i], i] += 1
+    return accumulator, theta, rho
+
+
 def get_motion_blur_params(img):
-    img = cv2.GaussianBlur(img, (5, 5), 0.5)
-    edge = cv2.Canny((img*255).astype(np.uint8), 70, 180)
-    cv2.imwrite('MB_edge.png', edge)
-    a = -0.021
-    b = 97 / 57 * 0.021
-    T = 500
+    std = 0.7
+    img = cv2.GaussianBlur(img, (5, 5), std)
+    edge = cv2.Canny((img * 255).astype(np.uint8), 72, 130)
+    accumulator, theta, rho = HoughTransform(edge, delta_theta=1, delta_rho=1)
+    save_image(accumulator, 'MB_accumulator.jpg')
+    _, c = np.unravel_index(np.argmax(accumulator), accumulator.shape)
+    r = np.argsort(accumulator[:, c])[-2:]
+    rho_1, rho_2 = rho[r]
+    theta = theta[c]
+    distance = np.abs(rho_1 - rho_2) + std * 5
+    b = -1 / (distance / 2 / np.sin(theta / 180 * np.pi))
+    a = -1 / (distance / 2 / np.cos(theta / 180 * np.pi))
+    save_image(edge, 'MB_edge.jpg')
+    # a = -0.021
+    # b = 97 / 57 * 0.021
+    # a = -2 / 15
+    # b = 2 * np.sqrt(3) / 15
+    T = 250
     return a, b, T
 
 
@@ -80,6 +113,7 @@ def get_MotionBlur_kernel(size, a, b, T):
                 kernel[u + size // 2][v + size // 2] = T * np.exp(-1.0j * param)
             else:
                 kernel[u + size // 2][v + size // 2] = T / param * np.sin(param) * np.exp(-1.0j * param)
+    save_image(np.abs(kernel), 'MB_kernel.jpg')
     return kernel
 
 
@@ -99,7 +133,7 @@ def restore_Trump(img, R=None, K=50):
     return restored_img
 
 
-def restore_Biden(img, a=None, b=None, T=None, K=300):
+def restore_Biden(img, a=None, b=None, T=None, K=50):
     """
     :param img: image of Biden with 3 channels
     :param a: proportional to extent of motion blur in vertical direction
@@ -109,7 +143,7 @@ def restore_Biden(img, a=None, b=None, T=None, K=300):
     :return: restored image of Biden
     """
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    img_fft = visualize_DFT(img_gray, display=False)
+    img_fft = visualize_DFT(img_gray, display=True)
     a, b, T = get_motion_blur_params(img_fft) if a is None or b is None or T is None else (a, b, T)
     MB_kernel = get_MotionBlur_kernel(img_gray.shape[0], a, b, T)
     restored_img = Wiener_filter(img, MB_kernel, K)
@@ -144,8 +178,8 @@ if __name__ == "__main__":
     mask = 1 - mask
     res_Trump = restore_Trump(Trump)
     res_Biden = restore_Biden(Biden)
-    cv2.imwrite('restored_Trump.jpg', res_Trump)
-    cv2.imwrite('restored_Biden.jpg', res_Biden)
-    # pyramids = Pyramids()
-    # blend = pyramids.pyramid_blending(res_Trump, res_Biden, mask)
-    # cv2.imwrite('Biden&Trump.jpg', pyramids.reconstruct(blend))
+    save_image(res_Trump, 'restored_Trump.jpg')
+    save_image(res_Biden, 'restored_Biden.jpg')
+    pyramids = Pyramids()
+    blend = pyramids.pyramid_blending(res_Trump, res_Biden, mask)
+    cv2.imwrite('Biden&Trump.jpg', pyramids.reconstruct(blend))
